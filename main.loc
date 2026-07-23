@@ -1,0 +1,69 @@
+module mosm
+  ( convertCommand
+  , cutCommand
+  -- , consensus
+  -- , filter
+  -- , grep
+  -- , md5sum
+  -- , head
+  -- , permute
+  -- , reverse
+  -- , sample
+  -- , sniff
+  -- , sort
+  -- , split
+  -- , stat
+  -- , subseq
+  -- , tail
+  -- , translate
+  -- , uniq
+  -- , wc
+  )
+
+import .lib.cut (cutCommand)
+import .lib.convert (convertCommand)
+
+-- -- --' finds the consensus sequence for aligned sequence
+-- -- consensusWrapper
+-- --
+-- -- --' extracts sequences meeting the given conditions
+-- -- filter
+-- --
+-- -- --' roughly emulates the UNIX grep command
+-- -- grep
+-- --
+-- -- --' calculate an md5 checksum for the input sequences
+-- -- md5sum
+-- --
+-- -- --' randomly order sequence
+-- -- permute
+-- --
+-- -- --' reverse each sequence (or reverse complement)
+-- -- reverse
+-- --
+-- -- --' randomly select entries from fasta file
+-- -- sample
+-- --
+-- -- --' extract info about the sequence
+-- -- sniff
+-- --
+-- -- --' sort sequences
+-- -- sort
+-- --
+-- -- --' split a fasta file into smaller files
+-- -- split
+-- --
+-- -- --' calculate sequence statistics
+-- -- stat
+-- --
+-- -- --' extract subsequence from each entry (revcomp if a<b)
+-- -- subseq
+-- --
+-- -- --' translate a DNA sequence into a protein sequence
+-- -- translate
+-- --
+-- -- --' count, omit, or merge repeated entries
+-- -- uniq
+-- --
+-- -- --' roughly emulates the UNIX wc command
+-- -- wc

@@ -1,0 +1,17 @@
+module (convertCommand)
+
+import .lib.mosm
+
+
+--' Convert FASTA format to a new form
+--' name: from-fasta
+convertCommand :: Str -> <IO,Err> ()
+convertCommand fastafile = do
+  o <- @stdout :: <IO,Err> (OStream (Seq Str))
+  streamSeq fastafile (@write 0 o)
+  @close o
+
+
+source Cpp from "formats.hpp" ("streamSeq")
+
+streamSeq :: Str -> ([Seq Str] -> <IO,Err> ()) -> <IO,Err> ()

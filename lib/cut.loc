@@ -1,0 +1,72 @@
+module (cutCommand)
+
+import .lib.mosm
+
+--' A pythonic slice (e.g., "12" or "0:5" or "::-1")
+type Slice = Str
+
+
+--' emulates UNIX cut command, where fields are entries
+--' name: cut
+--' render.buffer: --fasta=toFastaEntries
+cutCommand :: Slice -> RFile -> <IO, Err> ()
+cutCommand sliceStr filename =
+  @catch
+    ( do sliceTup <- parseSlice sliceStr
+         @catch
+           ( do fi <- @open filename :: <IO,Err> (IFile [Seq Str])
+                @collect (cutF sliceTup fi)
+           )
+           ( do fi <- @open filename :: <IO,Err> (IStream (Seq Str))
+                @collect (cutS sliceTup fi)
+           )
+    )
+    ( do idx <- @read sliceStr
+         @catch
+           ( do fi <- @open filename :: <IO,Err> (IFile [Seq Str])
+                @collect (accF idx fi)
+           )
+           ( do fi <- @open filename :: <IO,Err> (IStream (Seq Str))
+                @collect (accS idx fi)
+           )
+    )
+
+
+source Cpp from "mosm.hpp" ("cutStream", "accStream")
+
+cutStream :: ?I64 -> ?I64 -> ?I64
+          -> (<IO,Err> [Seq a])
+          -> ([Seq a] -> <IO,Err> ())
+          -> <IO,Err> ()
+
+accStream :: I64
+          -> (<IO,Err> [Seq a])
+          -> ([Seq a] -> <IO,Err> ())
+          -> <IO,Err> ()
+
+-- Parse a slice bound (empty string = unbounded)
+parseBound :: Str -> <Err> ?I64
+parseBound s ? size s == 0 = do Null
+             : @read s
+
+-- Parse "a:b" or "a:b:s". Missing components are Null (unbounded).
+parseSlice :: Slice -> <Err> (?I64, ?I64, ?I64)
+parseSlice s =
+  let xs = split ":" s
+  in ? size xs == 2 = (!(parseBound (.[0] xs)), !(parseBound (.[1] xs)), Null)
+     ? size xs == 3 = (!(parseBound (.[0] xs)), !(parseBound (.[1] xs)), !(parseBound (.[2] xs)))
+     : @throw "Failed to parse slice"
+
+--' File-backed (random-access) variants use morloc's built-in slice/index.
+cutF :: (?I64, ?I64, ?I64) -> IFile [Seq a] -> ([Seq a] -> <IO,Err> ()) -> <IO,Err> ()
+cutF (a,b,s) f fo = fo (.[a:b:s] f)
+
+accF :: I64 -> IFile [Seq a] -> ([Seq a] -> <IO,Err> ()) -> <IO,Err> ()
+accF i f fo = fo [.[i] f]
+
+--' Stream-backed variants delegate to the sourced C++ implementations.
+cutS :: (?I64, ?I64, ?I64) -> IStream (Seq a) -> ([Seq a] -> <IO,Err> ()) -> <IO,Err> ()
+cutS (a,b,s) fi fo = cutStream a b s (@next fi) fo
+
+accS :: I64 -> IStream (Seq a) -> ([Seq a] -> <IO,Err> ()) -> <IO,Err> ()
+accS k fi fo = accStream k (@next fi) fo

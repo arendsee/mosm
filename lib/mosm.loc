@@ -1,0 +1,17 @@
+module (*)
+
+import root-cpp
+import text-cpp
+import vector-cpp
+
+--' A readable filename
+--' check.path: r
+type RFile = Str
+
+--' One sequence read
+type Seq a = (a, Vector U8)
+
+source Cpp from "formats.hpp" ("toFastaEntries")
+
+--' Convert to FASTA
+toFastaEntries :: [Seq Str] -> Str
