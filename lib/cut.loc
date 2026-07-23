@@ -8,7 +8,7 @@ type Slice = Str
 
 --' emulates UNIX cut command, where fields are entries
 --' name: cut
---' render.buffer: --fasta=toFastaEntries
+--' render.buffer: -f/--fasta=toFastaEntries
 cutCommand :: Slice -> RFile -> <IO, Err> ()
 cutCommand sliceStr filename =
   @catch

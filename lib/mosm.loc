@@ -6,6 +6,7 @@ import vector-cpp
 
 --' A readable filename
 --' check.path: r
+--' stdin: true
 type RFile = Str
 
 --' One sequence read
