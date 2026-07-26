@@ -12,6 +12,6 @@ convertCommand fastafile = do
   @close o
 
 
-source Cpp from "formats.hpp" ("streamSeq")
+source Cpp from "src/formats.hpp" ("streamSeq")
 
 streamSeq :: Str -> ([Seq Str] -> <IO,Err> ()) -> <IO,Err> ()

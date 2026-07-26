@@ -1,0 +1,87 @@
+module (filterCommand)
+
+import .lib.mosm
+import maybe-cpp (isNull, require)
+
+--' unroll: true
+record FilterOpts where
+  --' keep only if length is greater than or equal to LEN
+  --' metavar: LEN
+  --' arg: -l/--longer-than
+  --' default: null
+  longerThan :: ?U64
+
+  --' keep only if length is less than or equal to LEN
+  --' metavar: LEN
+  --' arg: -s/--shorter-than
+  --' default: null
+  shorterThan :: ?U64
+
+  --' keep only if composition meets condition (e.g., 'GC > .5')
+  --' metavar: EXPR
+  --' arg: -c/--composition
+  --' default: ""
+  composition :: Str
+
+record Cpp => FilterOpts = "struct"
+
+-- Accept a leading-dot ratio like `.5` by prefixing a zero (`0.5`); morloc's
+-- number syntax (and @read) require a digit before the decimal point.
+normalizeLeadingDot :: Str -> Str
+normalizeLeadingDot x = ? startsWith "." x = join "" ["0", x] : x
+
+-- Effectful: parse and validate a composition rule into plain data
+-- (chars, comparator, limit). Returning data rather than a predicate
+-- keeps the callable out of the effect boundary, so it can be rebuilt
+-- purely at the call site.
+parseComposition :: Str -> <Err> (Vector U8, Str, Real)
+parseComposition compStr =
+  let s = split " " compStr
+  in ? size s != 3 = @throw "Expected composition rule with exactly three pieces (e.g., 'GC < 0.5')"
+     : do limit <- @read (normalizeLeadingDot (.[2] s)) :: <Err> Real
+          ? limit > 1.0 = @throw "Expected ratio <= 1"
+          ? limit < 0.0 = @throw "Expected ratio >= 0"
+          ? not (elem (.[1] s) ["<", ">", ">=", "<="]) = @throw "Illegal comparator #{.[1] s}"
+          : (str2u8 (.[0] s), .[1] s, limit)
+
+-- Pure: build the composition predicate from parsed data.
+compPredicate :: Vector U8 -> Str -> Real -> Vector U8 -> Bool
+compPredicate chars op limit seq =
+  let cmap = charCount seq
+      fraction = toReal (fold (\b c -> b + .[c] cmap) 0 chars) / toReal (size seq)
+  in ? op == "<"  = fraction <  limit
+     ? op == ">"  = fraction >  limit
+     ? op == ">=" = fraction >= limit
+     ? op == "<=" = fraction <= limit
+     : False
+
+--' extracts sequences meeting the given conditions
+--'
+--' Prints every entry by default. Multiple conditions may be selected.
+--'
+--' $ mosm filter -s 200 -l 100 -c 'GC > .5'
+--'
+--' Prints sequences with length of 100-200 and GC content >50%.
+--'
+--' name: filter
+--' render.buffer: -f/--fasta=toFastaEntries
+filterCommand :: FilterOpts -> RFile -> <IO, Err> ()
+filterCommand opts file = do
+  fi <- @open file :: <IO,Err> (IStream (Seq Str))
+
+  comp <- ? (.composition opts) == "" = do const True
+          : do
+              (chars, op, limit) <- parseComposition (.composition opts)
+              compPredicate chars op limit
+
+  let ltf = ? isNull (.longerThan opts) = const True
+            : let limit = require (.longerThan opts)
+              in (\seq -> size seq > limit)
+
+  let stf = ? isNull (.shorterThan opts) = const True
+            : let limit = require (.shorterThan opts)
+              in (\seq -> size seq < limit)
+
+  let f = (\(_, s) -> ltf s && stf s && comp s)
+
+  @collect (psfilter f (@next fi))

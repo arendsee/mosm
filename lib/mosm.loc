@@ -12,7 +12,22 @@ type RFile = Str
 --' One sequence read
 type Seq a = (a, Vector U8)
 
-source Cpp from "formats.hpp" ("toFastaEntries")
+source Cpp from "src/formats.hpp" ("toFastaEntries")
 
 --' Convert to FASTA
 toFastaEntries :: [Seq Str] -> Str
+
+source Cpp from "src/mosm.hpp" ("charCount", "str2u8", "psfilter")
+
+--' Count the occurances of each byte in a byte vector
+charCount :: Vector U8 -> Vector 256 U64
+
+--' Convert a string to byte vector
+str2u8 :: Str -> Vector U8
+
+--' Filter a stream
+psfilter
+  :: (a -> Bool)
+  -> <IO,Err> [a]           -- pull from stream via partially applied @next intrinsic
+  -> ([a] -> <IO,Err> ())   -- write to output stream
+  -> <IO,Err> ()

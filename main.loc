@@ -1,8 +1,8 @@
 module mosm
   ( convertCommand
   , cutCommand
+  , filterCommand
   -- , consensus
-  -- , filter
   -- , grep
   -- , md5sum
   -- , head
@@ -22,6 +22,7 @@ module mosm
 
 import .lib.cut (cutCommand)
 import .lib.convert (convertCommand)
+import .lib.filter (filterCommand)
 
 -- -- --' finds the consensus sequence for aligned sequence
 -- -- consensusWrapper

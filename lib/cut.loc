@@ -32,7 +32,7 @@ cutCommand sliceStr filename =
     )
 
 
-source Cpp from "mosm.hpp" ("cutStream", "accStream")
+source Cpp from "src/mosm.hpp" ("cutStream", "accStream")
 
 cutStream :: ?I64 -> ?I64 -> ?I64
           -> (<IO,Err> [Seq a])

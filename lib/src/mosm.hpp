@@ -132,3 +132,59 @@ inline void accStream(std::int64_t idx, Next next, Sink write_out) {
     throw std::runtime_error(
         "accStream: index out of range (stream is shorter than requested)");
 }
+
+// -----------------------------------------------------------------------------
+// str2u8 / charCount: byte-level helpers used by the composition filter.
+//
+// morloc signatures (see mosm.loc):
+//   str2u8    :: Str -> Vector U8
+//   charCount :: Vector U8 -> Vector 256 U64
+// -----------------------------------------------------------------------------
+
+// str2u8: reinterpret a string's bytes as a byte vector.
+inline std::vector<std::uint8_t> str2u8(const std::string& s) {
+    return std::vector<std::uint8_t>(s.begin(), s.end());
+}
+
+// charCount: histogram of byte values. Always returns exactly 256 buckets so
+// the result matches the `Vector 256 U64` schema, indexed by byte value.
+inline std::vector<std::uint64_t> charCount(const std::vector<std::uint8_t>& v) {
+    std::vector<std::uint64_t> counts(256, 0);
+    for (std::uint8_t b : v) {
+        counts[b]++;
+    }
+    return counts;
+}
+
+// -----------------------------------------------------------------------------
+// psfilter: forward-only predicate filter over a stream of reads. Same callback
+// shape as cutStream/accStream: `next` pulls the next batch (empty at EOF),
+// `write_out` forwards a batch. `keep` is applied to each read; reads for which
+// it returns false are dropped. Input batching is preserved: each non-empty
+// input batch yields at most one output batch of its surviving reads.
+//
+// morloc signature (see mosm.loc):
+//   psfilter :: (a -> Bool)
+//            -> <IO,Err> [a]
+//            -> ([a] -> <IO,Err> ())
+//            -> <IO,Err> ()
+// -----------------------------------------------------------------------------
+template <class Pred, class Next, class Sink>
+inline void psfilter(Pred keep, Next next, Sink write_out) {
+    using NextResult = std::invoke_result_t<Next>;
+    using Read       = typename NextResult::value_type;
+
+    for (;;) {
+        auto batch = next();
+        if (batch.empty()) break;
+
+        std::vector<Read> out;
+        for (auto& r : batch) {
+            if (keep(r)) {
+                out.emplace_back(std::move(r));
+            }
+        }
+
+        if (!out.empty()) write_out(std::move(out));
+    }
+}
