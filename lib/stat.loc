@@ -1,0 +1,105 @@
+module (statsCommand, cstatsCommand)
+
+import .lib.mosm
+
+
+--' unroll: true
+record StatsOpts where
+
+  --' Case sensitive
+  --' true: -I/--case-sensitive
+  caseSensitive :: Bool
+
+record Cpp => StatsOpts = "struct"
+
+source Cpp from "src/stat.hpp"
+  ( "charHist"
+  , "addHist"
+  , "caseInsensitive"
+  , "psmap"
+  , "statsProfile"
+  , "statsHist"
+  , "statsLogHist"
+  , "statsProportion"
+  , "statsCountTable"
+  , "statsSummary"
+  , "cstatsSummary"
+  )
+
+-- helpers
+charHist :: Vector U8 -> Vector 256 U64
+addHist :: Vector n U64 -> Vector n U64 -> Vector n U64
+caseInsensitive :: Vector 256 U64 -> Vector 256 U64
+
+-- Map each read of a stream through `f`, forwarding results to a sink. The pull
+-- loop lives in C++; morloc supplies `f` and the `@next`/sink callbacks.
+psmap
+  :: (a -> b)
+  -> <IO,Err> [a]
+  -> ([b] -> <IO,Err> ())
+  -> <IO,Err> ()
+
+
+
+--' display protein profile
+statsProfile :: [Vector 256 U64] -> <IO, Err> ()
+
+--' write proportion of each character
+statsProportion :: [Vector 256 U64] -> <IO, Err> ()
+
+--' write a table of character counts
+statsCountTable :: [Vector 256 U64] -> <IO, Err> ()
+
+--' write 5 number summary of lengths
+cstatsSummary :: [Vector 256 U64] -> <IO, Err> ()
+
+-- One byte histogram per sequence. Two variants selected by -I; both carry an
+-- explicit signature so the collected element type resolves concretely.
+seqHist :: Seq Str -> Vector 256 U64
+seqHist (_, seq) = charHist seq
+
+seqHistCI :: Seq Str -> Vector 256 U64
+seqHistCI (_, seq) = caseInsensitive (charHist seq)
+
+-- Collect one byte histogram per sequence, folding case unless -I is given.
+--
+--' calculate character-composition statistics
+--' name: cstat
+--' render: -C/--profile=statsProfile
+--' render: -p/--proportion=statsProportion
+--' render: -c/--counts=statsCountTable
+--' render: -s/--summary=cstatsSummary
+cstatsCommand :: StatsOpts -> RFile -> <IO, Err> ()
+cstatsCommand opt file = do
+  fi <- @open file :: <IO,Err> (IStream (Seq Str))
+  let toHist = ? .caseSensitive opt = seqHist : seqHistCI
+  @collect (psmap toHist (@next fi))
+
+
+
+--' write 5 number summary of lengths
+statsSummary :: [(Str, U64)] -> <IO, Err> ()
+
+--' write ascii histogram of sequence lengths
+statsHist :: [(Str, U64)] -> <IO, Err> ()
+
+--' write ascii histogram of sequence log2 lengths
+statsLogHist :: [(Str, U64)] -> <IO, Err> ()
+
+-- One (header, length) pair per sequence. The explicit signature pins the
+-- collected element type so it serializes concretely.
+seqLength :: Seq Str -> (Str, U64)
+seqLength (name, seq) = (name, size seq)
+
+-- Collect one (header, length) pair per sequence. Case sensitivity does not
+-- affect lengths, so StatsOpts is ignored here.
+--
+--' calculate sequence-length statistics
+--' name: stat
+--' render: -g/--hist=statsHist
+--' render: -G/--log-hist=statsLogHist
+--' render: -s/--summary=statsSummary
+statsCommand :: StatsOpts -> RFile -> <IO, Err> ()
+statsCommand _ file = do
+  fi <- @open file :: <IO,Err> (IStream (Seq Str))
+  @collect (psmap seqLength (@next fi))
