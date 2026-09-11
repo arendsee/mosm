@@ -9,12 +9,12 @@ convertCommand ::
   --' Fasta file
   --' @check.path r
   --' @stdin
-  Str -> <IO,Err> ()
+  Str -> <IO> ()
 convertCommand fastafile = do
-  o <- @stdout :: <IO,Err> (OStream (Seq Str))
-  streamSeq fastafile (@write 3 o)
+  o <- @stdout :: <IO> (OStream (Seq Str))
+  streamSeq fastafile (sink 3 o)
   @close o
 
 source Cpp from "src/formats.hpp" ("streamSeq")
 
-streamSeq :: Str -> ([Seq Str] -> <IO,Err> ()) -> <IO,Err> ()
+streamSeq :: Str -> ([Seq Str] -> <IO> ()) -> <IO> ()

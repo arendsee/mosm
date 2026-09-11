@@ -30,23 +30,24 @@ record Cpp => FilterOpts = "struct"
 normalizeLeadingDot :: Str -> Str
 normalizeLeadingDot x = ? startsWith "." x = join "" ["0", x] : x
 
--- Effectful: parse and validate a composition rule into plain data
--- (chars, comparator, limit). Returning data rather than a predicate
--- keeps the callable out of the effect boundary, so it can be rebuilt
--- purely at the call site.
-parseComposition :: Str -> <Err> (Vector U8, Str, Real)
+-- Parse and validate a composition rule into plain data (chars,
+-- comparator, limit). Returning data rather than a predicate keeps the
+-- callable out of the Try, so it can be rebuilt purely at the call site.
+parseComposition :: Str -> Try Str (Vector U8, Str, Real)
 parseComposition compStr =
   let s = split " " compStr
-  in ? size s != 3 = @throw "Expected composition rule with exactly three pieces (e.g., 'GC < 0.5')"
-     : do limit <- @read (normalizeLeadingDot (.[2] s)) :: <Err> Real
-          ? limit > 1.0 = @throw "Expected ratio <= 1"
-          ? limit < 0.0 = @throw "Expected ratio >= 0"
-          ? not (elem (.[1] s) ["<", ">", ">=", "<="]) = @throw "Illegal comparator #{.[1] s}"
-          : (str2u8 (.[0] s), .[1] s, limit)
+  in ? size s != 3 = Err "Expected composition rule with exactly three pieces (e.g., 'GC < 0.5')"
+     : match (@read (normalizeLeadingDot (.[2] s)) :: Try Str Real)
+         | (Err e) = Err e
+         | (Ok limit) =
+             ? limit > 1.0 = Err "Expected ratio <= 1"
+             ? limit < 0.0 = Err "Expected ratio >= 0"
+             ? not (elem (.[1] s) ["<", ">", ">=", "<="]) = Err "Illegal comparator #{.[1] s}"
+             : Ok (str2u8 (.[0] s), .[1] s, limit)
 
 -- Pure: build the composition predicate from parsed data.
-compPredicate :: Vector U8 -> Str -> Real -> Vector U8 -> Bool
-compPredicate chars op limit seq =
+compPredicate :: (Vector U8, Str, Real) -> Vector U8 -> Bool
+compPredicate (chars, op, limit) seq =
   let cmap = charCount seq
       fraction = toReal (fold (\b c -> b + .[c] cmap) 0 chars) / toReal (size seq)
   in ? op == "<"  = fraction <  limit
@@ -65,14 +66,12 @@ compPredicate chars op limit seq =
 --'
 --' @name filter
 --' @render -f/--fasta=toFastaEntries @stream @default
-filterCommand :: FilterOpts -> RFile -> <IO, Err> ()
+filterCommand :: FilterOpts -> RFile -> <IO> ()
 filterCommand opts file = do
-  fi <- @open file :: <IO,Err> (IStream (Seq Str))
+  Ok fi <- @open file :: <IO> (Try Str (IStream (Seq Str)))
 
-  comp <- ? (.composition opts) == "" = do const True
-          : do
-              (chars, op, limit) <- parseComposition (.composition opts)
-              compPredicate chars op limit
+  let comp = ? (.composition opts) == "" = const True
+             : compPredicate (unwrap (parseComposition (.composition opts)))
 
   let ltf = ? isNull (.longerThan opts) = const True
             : let limit = require (.longerThan opts)
@@ -84,4 +83,10 @@ filterCommand opts file = do
 
   let f = (\(_, s) -> ltf s && stf s && comp s)
 
-  @collect (psfilter f (@next fi))
+  @collect (filterSeqs f fi)
+
+-- The @collect producer, at the concrete element type. A streaming
+-- command's batch type is read off the producer's signature, so the
+-- generic psfilter cannot sit at the head of the @collect argument.
+filterSeqs :: (Seq Str -> Bool) -> IStream (Seq Str) -> ([Seq Str] -> <IO> ()) -> <IO> ()
+filterSeqs f fi = psfilter f (pull fi)

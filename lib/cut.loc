@@ -9,71 +9,76 @@ type Slice = Str
 --' emulates UNIX cut command, where fields are entries
 --' @name cut
 --' @render -f/--fasta=toFastaEntries @stream @default
-cutCommand :: Slice -> RFile -> <IO, Err> ()
--- Dispatch on the shape of the argument (a bare index has no ':',
--- a slice has one or two) instead of catching a parse failure. The
--- old form wrapped the entire streaming execution in the outer
--- @catch, so ANY error raised while streaming (e.g. a broken pipe
--- from `| head`) was misrouted into the integer-accession fallback,
--- whose @read then failed on the slice string. Selecting the branch
--- up front leaves the streaming execution outside any @catch, so real
--- IO errors propagate.
+cutCommand :: Slice -> RFile -> <IO> ()
+-- Dispatch on the shape of the argument (a bare index has no ':', a slice
+-- has one or two). A random-access IFile is preferred; when the input is
+-- not one (a stream packet, or stdin) the @open reports Err and the
+-- forward-only stream variant runs instead. Only the open is inspected, so
+-- an error raised while streaming (e.g. a broken pipe from `| head`)
+-- propagates rather than selecting the other path.
 cutCommand sliceStr filename =
   let parts = split ":" sliceStr
   in ? size parts == 1
-       = do idx <- @read sliceStr
-            @catch
-              ( do fi <- @open filename :: <IO,Err> (IFile [Seq Str])
-                   @collect (accF idx fi)
-              )
-              ( do fi <- @open filename :: <IO,Err> (IStream (Seq Str))
-                   @collect (accS idx fi)
-              )
-     : do sliceTup <- parseSlice sliceStr
-          @catch
-            ( do fi <- @open filename :: <IO,Err> (IFile [Seq Str])
-                 @collect (cutF sliceTup fi)
-            )
-            ( do fi <- @open filename :: <IO,Err> (IStream (Seq Str))
-                 @collect (cutS sliceTup fi)
-            )
+       = do let idx = unwrap (@read sliceStr)
+            r <- @open filename :: <IO> (Try Str (IFile [Seq Str]))
+            match r
+              | (Ok fi) = @collect (accF idx fi)
+              | (Err _) = do Ok fi <- @open filename :: <IO> (Try Str (IStream (Seq Str)))
+                             @collect (accS idx fi)
+     : do let sliceTup = unwrap (parseSlice sliceStr)
+          r <- @open filename :: <IO> (Try Str (IFile [Seq Str]))
+          match r
+            | (Ok fi) = @collect (cutF sliceTup fi)
+            | (Err _) = do Ok fi <- @open filename :: <IO> (Try Str (IStream (Seq Str)))
+                           @collect (cutS sliceTup fi)
 
 
 source Cpp from "src/mosm.hpp" ("cutStream", "accStream")
 
 cutStream :: ?I64 -> ?I64 -> ?I64
-          -> (<IO,Err> [Seq a])
-          -> ([Seq a] -> <IO,Err> ())
-          -> <IO,Err> ()
+          -> (<IO> [Seq a])
+          -> ([Seq a] -> <IO> ())
+          -> <IO> ()
 
 accStream :: I64
-          -> (<IO,Err> [Seq a])
-          -> ([Seq a] -> <IO,Err> ())
-          -> <IO,Err> ()
+          -> (<IO> [Seq a])
+          -> ([Seq a] -> <IO> ())
+          -> <IO> ()
 
 -- Parse a slice bound (empty string = unbounded)
-parseBound :: Str -> <Err> ?I64
-parseBound s ? size s == 0 = do Null
+parseBound :: Str -> Try Str ?I64
+parseBound s ? size s == 0 = Ok Null
              : @read s
 
 -- Parse "a:b" or "a:b:s". Missing components are Null (unbounded).
-parseSlice :: Slice -> <Err> (?I64, ?I64, ?I64)
+parseSlice :: Slice -> Try Str (?I64, ?I64, ?I64)
 parseSlice s =
   let xs = split ":" s
-  in ? size xs == 2 = (!(parseBound (.[0] xs)), !(parseBound (.[1] xs)), Null)
-     ? size xs == 3 = (!(parseBound (.[0] xs)), !(parseBound (.[1] xs)), !(parseBound (.[2] xs)))
-     : @throw "Failed to parse slice"
+  in ? size xs == 2 =
+         match (parseBound (.[0] xs), parseBound (.[1] xs))
+           | (Ok a, Ok b) = Ok (a, b, Null)
+           | (Err e, _) = Err e
+           | (_, Err e) = Err e
+     ? size xs == 3 =
+         match (parseBound (.[0] xs), parseBound (.[1] xs), parseBound (.[2] xs))
+           | (Ok a, Ok b, Ok c) = Ok (a, b, c)
+           | (Err e, _, _) = Err e
+           | (_, Err e, _) = Err e
+           | (_, _, Err e) = Err e
+     : Err "Failed to parse slice"
 
 --' File-backed (random-access) variants use morloc's built-in slice/index.
-cutF :: (?I64, ?I64, ?I64) -> IFile [Seq a] -> ([Seq a] -> <IO,Err> ()) -> <IO,Err> ()
+--' All four producers are at the concrete element type: a streaming
+--' command's batch type is read off the producer's signature.
+cutF :: (?I64, ?I64, ?I64) -> IFile [Seq Str] -> ([Seq Str] -> <IO> ()) -> <IO> ()
 cutF (a,b,s) f fo = fo (.[a:b:s] f)
 
-accF :: I64 -> IFile [Seq a] -> ([Seq a] -> <IO,Err> ()) -> <IO,Err> ()
+accF :: I64 -> IFile [Seq Str] -> ([Seq Str] -> <IO> ()) -> <IO> ()
 accF i f fo = fo [.[i] f]
 
 --' Stream-backed variants delegate to the sourced C++ implementations.
-cutS :: (?I64, ?I64, ?I64) -> IStream (Seq a) -> ([Seq a] -> <IO,Err> ()) -> <IO,Err> ()
-cutS (a,b,s) fi fo = cutStream a b s (@next fi) fo
+cutS :: (?I64, ?I64, ?I64) -> IStream (Seq Str) -> ([Seq Str] -> <IO> ()) -> <IO> ()
+cutS (a,b,s) fi fo = cutStream a b s (pull fi) fo
 
-accS :: I64 -> IStream (Seq a) -> ([Seq a] -> <IO,Err> ()) -> <IO,Err> ()
-accS k fi fo = accStream k (@next fi) fo
+accS :: I64 -> IStream (Seq Str) -> ([Seq Str] -> <IO> ()) -> <IO> ()
+accS k fi fo = accStream k (pull fi) fo

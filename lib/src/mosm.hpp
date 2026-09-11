@@ -165,9 +165,9 @@ inline std::vector<std::uint64_t> charCount(const std::vector<std::uint8_t>& v) 
 //
 // morloc signature (see mosm.loc):
 //   psfilter :: (a -> Bool)
-//            -> <IO,Err> [a]
-//            -> ([a] -> <IO,Err> ())
-//            -> <IO,Err> ()
+//            -> <IO> [a]
+//            -> ([a] -> <IO> ())
+//            -> <IO> ()
 // -----------------------------------------------------------------------------
 template <class Pred, class Next, class Sink>
 inline void psfilter(Pred keep, Next next, Sink write_out) {

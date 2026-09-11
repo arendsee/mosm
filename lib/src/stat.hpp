@@ -36,13 +36,13 @@
 //   charHist        :: Vector U8       -> Vector 256 U64
 //   addHist         :: Vector n U64    -> Vector n U64 -> Vector n U64
 //   caseInsensitive :: Vector 256 U64  -> Vector 256 U64
-//   statsProfile    :: [Vector 256 U64] -> <IO,Err> ()
-//   statsProportion :: [Vector 256 U64] -> <IO,Err> ()
-//   statsCountTable :: [Vector 256 U64] -> <IO,Err> ()
-//   cstatsSummary   :: [Vector 256 U64] -> <IO,Err> ()
-//   statsSummary    :: [(Str, U64)]    -> <IO,Err> ()
-//   statsHist       :: [(Str, U64)]    -> <IO,Err> ()
-//   statsLogHist    :: [(Str, U64)]    -> <IO,Err> ()
+//   statsProfile    :: [Vector 256 U64] -> <IO> ()
+//   statsProportion :: [Vector 256 U64] -> <IO> ()
+//   statsCountTable :: [Vector 256 U64] -> <IO> ()
+//   cstatsSummary   :: [Vector 256 U64] -> <IO> ()
+//   statsSummary    :: [(Str, U64)]    -> <IO> ()
+//   statsHist       :: [(Str, U64)]    -> <IO> ()
+//   statsLogHist    :: [(Str, U64)]    -> <IO> ()
 // -----------------------------------------------------------------------------
 
 namespace mosm_stat {
@@ -313,7 +313,7 @@ inline std::vector<std::pair<int, std::uint64_t>> nonzeroCounts(
 // preserved (each non-empty input batch yields one output batch).
 //
 // morloc signature (see stat.loc):
-//   psmap :: (a -> b) -> (<IO,Err> [a]) -> ([b] -> <IO,Err> ()) -> <IO,Err> ()
+//   psmap :: (a -> b) -> (<IO> [a]) -> ([b] -> <IO> ()) -> <IO> ()
 template <class Fn, class Next, class Sink>
 inline void psmap(Fn f, Next next, Sink write_out) {
     using NextResult = std::invoke_result_t<Next>;

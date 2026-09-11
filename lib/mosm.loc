@@ -28,6 +28,22 @@ str2u8 :: Str -> Vector U8
 --' Filter a stream
 psfilter
   :: (a -> Bool)
-  -> <IO,Err> [a]           -- pull from stream via partially applied @next intrinsic
-  -> ([a] -> <IO,Err> ())   -- write to output stream
-  -> <IO,Err> ()
+  -> <IO> [a]           -- pull from stream, see `pull`
+  -> ([a] -> <IO> ())   -- write to output stream
+  -> <IO> ()
+
+--' Pull the next batch from a stream. A decode failure aborts the run.
+--'
+--' `@next` returns a `Try`; the sourced C++ loops expect a plain batch, so
+--' this unwraps once here rather than in every caller.
+pull :: IStream a -> <IO> [a]
+pull s = do
+  Ok xs <- @next s
+  xs
+
+--' Write one batch to a stream at compression level `z`. A write failure
+--' aborts the run.
+sink :: Int -> OStream a -> [a] -> <IO> ()
+sink z o xs = do
+  @write z o xs
+  ()

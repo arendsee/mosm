@@ -1,3 +1,4 @@
 # Data sources
 
-UNIPROT Arabidopsis thaliana proteom: at.faa
+UNIPROT Arabidopsis thaliana proteome: at.faa
+Human genome: gencode.v50.transcripts.fa

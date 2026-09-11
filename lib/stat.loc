@@ -35,23 +35,23 @@ caseInsensitive :: Vector 256 U64 -> Vector 256 U64
 -- loop lives in C++; morloc supplies `f` and the `@next`/sink callbacks.
 psmap
   :: (a -> b)
-  -> <IO,Err> [a]
-  -> ([b] -> <IO,Err> ())
-  -> <IO,Err> ()
+  -> <IO> [a]
+  -> ([b] -> <IO> ())
+  -> <IO> ()
  
 
 
 --' display protein profile
-statsProfile :: [Vector 256 U64] -> <IO, Err> ()
+statsProfile :: [Vector 256 U64] -> <IO> ()
 
 --' write proportion of each character
-statsProportion :: [Vector 256 U64] -> <IO, Err> ()
+statsProportion :: [Vector 256 U64] -> <IO> ()
 
 --' write a table of character counts
-statsCountTable :: [Vector 256 U64] -> <IO, Err> ()
+statsCountTable :: [Vector 256 U64] -> <IO> ()
 
 --' write 5 number summary of lengths
-cstatsSummary :: [Vector 256 U64] -> <IO, Err> ()
+cstatsSummary :: [Vector 256 U64] -> <IO> ()
 
 -- One byte histogram per sequence. Two variants selected by -I; both carry an
 -- explicit signature so the collected element type resolves concretely.
@@ -69,22 +69,31 @@ seqHistCI (_, seq) = caseInsensitive (charHist seq)
 --' @render -p/--proportion=statsProportion
 --' @render -c/--counts=statsCountTable
 --' @render -s/--summary=cstatsSummary @default
-cstatsCommand :: StatsOpts -> RFile -> <IO, Err> ()
+cstatsCommand :: StatsOpts -> RFile -> <IO> ()
 cstatsCommand opt file = do
-  fi <- @open file :: <IO,Err> (IStream (Seq Str))
+  Ok fi <- @open file :: <IO> (Try Str (IStream (Seq Str)))
   let toHist = ? .caseSensitive opt = seqHist
                : seqHistCI
-  @collect (psmap toHist (@next fi))
+  @collect (histSeqs toHist fi)
+
+-- The @collect producers, at concrete element types. A streaming command's
+-- batch type is read off the producer's signature, so the generic psmap
+-- cannot sit at the head of the @collect argument.
+histSeqs :: (Seq Str -> Vector 256 U64) -> IStream (Seq Str) -> ([Vector 256 U64] -> <IO> ()) -> <IO> ()
+histSeqs f fi = psmap f (pull fi)
+
+lengthSeqs :: (Seq Str -> (Str, U64)) -> IStream (Seq Str) -> ([(Str, U64)] -> <IO> ()) -> <IO> ()
+lengthSeqs f fi = psmap f (pull fi)
 
 
 --' write 5 number summary of lengths
-statsSummary :: [(Str, U64)] -> <IO, Err> ()
+statsSummary :: [(Str, U64)] -> <IO> ()
 
 --' write ascii histogram of sequence lengths
-statsHist :: [(Str, U64)] -> <IO, Err> ()
+statsHist :: [(Str, U64)] -> <IO> ()
 
 --' write ascii histogram of sequence log2 lengths
-statsLogHist :: [(Str, U64)] -> <IO, Err> ()
+statsLogHist :: [(Str, U64)] -> <IO> ()
 
 -- One (header, length) pair per sequence. The explicit signature pins the
 -- collected element type so it serializes concretely.
@@ -99,7 +108,7 @@ seqLength (name, seq) = (name, size seq)
 --' @render -g/--hist=statsHist
 --' @render -G/--log-hist=statsLogHist
 --' @render -s/--summary=statsSummary @default
-statsCommand :: StatsOpts -> RFile -> <IO, Err> ()
+statsCommand :: StatsOpts -> RFile -> <IO> ()
 statsCommand _ file = do
-  fi <- @open file :: <IO,Err> (IStream (Seq Str))
-  @collect (psmap seqLength (@next fi))
+  Ok fi <- @open file :: <IO> (Try Str (IStream (Seq Str)))
+  @collect (lengthSeqs seqLength fi)

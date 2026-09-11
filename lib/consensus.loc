@@ -6,6 +6,6 @@ import .lib.mosm
 --'
 --' @name consensus
 --' @render -f/--fasta=toFastaEntries @stream
-consensusCommand :: FilterOpts -> RFile -> <IO, Err> ()
+consensusCommand :: FilterOpts -> RFile -> <IO> ()
 consensusCommand opts file = do
-  fi <- @open file :: <IO,Err> (IStream (Seq Str))
+  Ok fi <- @open file :: <IO> (Try Str (IStream (Seq Str)))
