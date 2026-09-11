@@ -7,29 +7,36 @@ type Slice = Str
 
 
 --' emulates UNIX cut command, where fields are entries
---' name: cut
---' render.buffer: -f/--fasta=toFastaEntries
+--' @name cut
+--' @render -f/--fasta=toFastaEntries @stream @default
 cutCommand :: Slice -> RFile -> <IO, Err> ()
+-- Dispatch on the shape of the argument (a bare index has no ':',
+-- a slice has one or two) instead of catching a parse failure. The
+-- old form wrapped the entire streaming execution in the outer
+-- @catch, so ANY error raised while streaming (e.g. a broken pipe
+-- from `| head`) was misrouted into the integer-accession fallback,
+-- whose @read then failed on the slice string. Selecting the branch
+-- up front leaves the streaming execution outside any @catch, so real
+-- IO errors propagate.
 cutCommand sliceStr filename =
-  @catch
-    ( do sliceTup <- parseSlice sliceStr
-         @catch
-           ( do fi <- @open filename :: <IO,Err> (IFile [Seq Str])
-                @collect (cutF sliceTup fi)
-           )
-           ( do fi <- @open filename :: <IO,Err> (IStream (Seq Str))
-                @collect (cutS sliceTup fi)
-           )
-    )
-    ( do idx <- @read sliceStr
-         @catch
-           ( do fi <- @open filename :: <IO,Err> (IFile [Seq Str])
-                @collect (accF idx fi)
-           )
-           ( do fi <- @open filename :: <IO,Err> (IStream (Seq Str))
-                @collect (accS idx fi)
-           )
-    )
+  let parts = split ":" sliceStr
+  in ? size parts == 1
+       = do idx <- @read sliceStr
+            @catch
+              ( do fi <- @open filename :: <IO,Err> (IFile [Seq Str])
+                   @collect (accF idx fi)
+              )
+              ( do fi <- @open filename :: <IO,Err> (IStream (Seq Str))
+                   @collect (accS idx fi)
+              )
+     : do sliceTup <- parseSlice sliceStr
+          @catch
+            ( do fi <- @open filename :: <IO,Err> (IFile [Seq Str])
+                 @collect (cutF sliceTup fi)
+            )
+            ( do fi <- @open filename :: <IO,Err> (IStream (Seq Str))
+                 @collect (cutS sliceTup fi)
+            )
 
 
 source Cpp from "src/mosm.hpp" ("cutStream", "accStream")

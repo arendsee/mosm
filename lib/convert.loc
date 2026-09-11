@@ -4,13 +4,16 @@ import .lib.mosm
 
 
 --' Convert FASTA format to a new form
---' name: from-fasta
-convertCommand :: Str -> <IO,Err> ()
+--' @name convert
+convertCommand ::
+  --' Fasta file
+  --' @check.path r
+  --' @stdin
+  Str -> <IO,Err> ()
 convertCommand fastafile = do
   o <- @stdout :: <IO,Err> (OStream (Seq Str))
-  streamSeq fastafile (@write 0 o)
+  streamSeq fastafile (@write 3 o)
   @close o
-
 
 source Cpp from "src/formats.hpp" ("streamSeq")
 

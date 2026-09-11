@@ -3,24 +3,24 @@ module (filterCommand)
 import .lib.mosm
 import maybe-cpp (isNull, require)
 
---' unroll: true
+--' @unroll
 record FilterOpts where
   --' keep only if length is greater than or equal to LEN
-  --' metavar: LEN
-  --' arg: -l/--longer-than
-  --' default: null
+  --' @metavar LEN
+  --' @arg -l/--longer-than
+  --' @default null
   longerThan :: ?U64
 
   --' keep only if length is less than or equal to LEN
-  --' metavar: LEN
-  --' arg: -s/--shorter-than
-  --' default: null
+  --' @metavar LEN
+  --' @arg -s/--shorter-than
+  --' @default null
   shorterThan :: ?U64
 
   --' keep only if composition meets condition (e.g., 'GC > .5')
-  --' metavar: EXPR
-  --' arg: -c/--composition
-  --' default: ""
+  --' @metavar EXPR
+  --' @arg -c/--composition
+  --' @default ""
   composition :: Str
 
 record Cpp => FilterOpts = "struct"
@@ -63,8 +63,8 @@ compPredicate chars op limit seq =
 --'
 --' Prints sequences with length of 100-200 and GC content >50%.
 --'
---' name: filter
---' render.buffer: -f/--fasta=toFastaEntries
+--' @name filter
+--' @render -f/--fasta=toFastaEntries @stream @default
 filterCommand :: FilterOpts -> RFile -> <IO, Err> ()
 filterCommand opts file = do
   fi <- @open file :: <IO,Err> (IStream (Seq Str))

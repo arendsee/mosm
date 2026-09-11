@@ -3,11 +3,11 @@ module (statsCommand, cstatsCommand)
 import .lib.mosm
 
 
---' unroll: true
+--' @unroll
 record StatsOpts where
 
   --' Case sensitive
-  --' true: -I/--case-sensitive
+  --' @true -I/--case-sensitive
   caseSensitive :: Bool
 
 record Cpp => StatsOpts = "struct"
@@ -38,7 +38,7 @@ psmap
   -> <IO,Err> [a]
   -> ([b] -> <IO,Err> ())
   -> <IO,Err> ()
-
+ 
 
 
 --' display protein profile
@@ -64,17 +64,17 @@ seqHistCI (_, seq) = caseInsensitive (charHist seq)
 -- Collect one byte histogram per sequence, folding case unless -I is given.
 --
 --' calculate character-composition statistics
---' name: cstat
---' render: -C/--profile=statsProfile
---' render: -p/--proportion=statsProportion
---' render: -c/--counts=statsCountTable
---' render: -s/--summary=cstatsSummary
+--' @name cstat
+--' @render -C/--profile=statsProfile
+--' @render -p/--proportion=statsProportion
+--' @render -c/--counts=statsCountTable
+--' @render -s/--summary=cstatsSummary @default
 cstatsCommand :: StatsOpts -> RFile -> <IO, Err> ()
 cstatsCommand opt file = do
   fi <- @open file :: <IO,Err> (IStream (Seq Str))
-  let toHist = ? .caseSensitive opt = seqHist : seqHistCI
+  let toHist = ? .caseSensitive opt = seqHist
+               : seqHistCI
   @collect (psmap toHist (@next fi))
-
 
 
 --' write 5 number summary of lengths
@@ -95,10 +95,10 @@ seqLength (name, seq) = (name, size seq)
 -- affect lengths, so StatsOpts is ignored here.
 --
 --' calculate sequence-length statistics
---' name: stat
---' render: -g/--hist=statsHist
---' render: -G/--log-hist=statsLogHist
---' render: -s/--summary=statsSummary
+--' @name stat
+--' @render -g/--hist=statsHist
+--' @render -G/--log-hist=statsLogHist
+--' @render -s/--summary=statsSummary @default
 statsCommand :: StatsOpts -> RFile -> <IO, Err> ()
 statsCommand _ file = do
   fi <- @open file :: <IO,Err> (IStream (Seq Str))

@@ -5,8 +5,8 @@ import text-cpp
 import vector-cpp
 
 --' A readable filename
---' check.path: r
---' stdin: true
+--' @check.path r
+--' @stdin
 type RFile = Str
 
 --' One sequence read

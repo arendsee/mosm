@@ -5,21 +5,19 @@ module mosm
   , statsCommand
   , cstatsCommand
   -- , consensus
+  -- , wc
   -- , grep
-  -- , md5sum
-  -- , head
+  -- , hash
   -- , permute
   -- , reverse
   -- , sample
   -- , sniff
   -- , sort
   -- , split
-  -- , stat
   -- , subseq
   -- , tail
   -- , translate
   -- , uniq
-  -- , wc
   )
 
 import .lib.cut (cutCommand)

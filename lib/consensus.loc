@@ -1,0 +1,11 @@
+module (consensusCommand)
+
+import .lib.mosm
+
+--' Find the consensus for an alignment
+--'
+--' @name consensus
+--' @render -f/--fasta=toFastaEntries @stream
+consensusCommand :: FilterOpts -> RFile -> <IO, Err> ()
+consensusCommand opts file = do
+  fi <- @open file :: <IO,Err> (IStream (Seq Str))
