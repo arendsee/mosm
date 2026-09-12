@@ -307,31 +307,6 @@ inline std::vector<std::pair<int, std::uint64_t>> nonzeroCounts(
 // Exported (sourced) functions.
 // =============================================================================
 
-// psmap: forward-only map over a stream of reads. Same callback shape as
-// psfilter (mosm.hpp): `next` pulls the next batch (empty at EOF), `write_out`
-// forwards a batch. Each read is transformed by `f`; input batching is
-// preserved (each non-empty input batch yields one output batch).
-//
-// morloc signature (see stat.loc):
-//   psmap :: (a -> b) -> (<IO> [a]) -> ([b] -> <IO> ()) -> <IO> ()
-template <class Fn, class Next, class Sink>
-inline void psmap(Fn f, Next next, Sink write_out) {
-    using NextResult = std::invoke_result_t<Next>;
-    using In         = typename NextResult::value_type;
-    using Out        = std::decay_t<std::invoke_result_t<Fn, In&>>;
-
-    for (;;) {
-        auto batch = next();
-        if (batch.empty()) break;
-
-        std::vector<Out> out;
-        out.reserve(batch.size());
-        for (auto& r : batch) out.emplace_back(f(r));
-
-        if (!out.empty()) write_out(std::move(out));
-    }
-}
-
 // charHist: histogram of byte values in one sequence. Always 256 buckets.
 inline std::vector<std::uint64_t> charHist(const std::vector<std::uint8_t>& seq) {
     std::vector<std::uint64_t> counts(256, 0);

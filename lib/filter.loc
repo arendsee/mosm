@@ -23,6 +23,12 @@ record FilterOpts where
   --' @default ""
   composition :: Str
 
+  --' worker threads for the per-sequence tests; 0 means one per core
+  --' @metavar N
+  --' @arg -t/--threads
+  --' @default 0
+  threads :: Int
+
 record Cpp => FilterOpts = "struct"
 
 -- Accept a leading-dot ratio like `.5` by prefixing a zero (`0.5`); morloc's
@@ -33,7 +39,7 @@ normalizeLeadingDot x = ? startsWith "." x = join "" ["0", x] : x
 -- Parse and validate a composition rule into plain data (chars,
 -- comparator, limit). Returning data rather than a predicate keeps the
 -- callable out of the Try, so it can be rebuilt purely at the call site.
-parseComposition :: Str -> Try Str (Vector U8, Str, Real)
+parseComposition :: Str -> Try Str CompRule
 parseComposition compStr =
   let s = split " " compStr
   in ? size s != 3 = Err "Expected composition rule with exactly three pieces (e.g., 'GC < 0.5')"
@@ -45,8 +51,19 @@ parseComposition compStr =
              ? not (elem (.[1] s) ["<", ">", ">=", "<="]) = Err "Illegal comparator #{.[1] s}"
              : Ok (str2u8 (.[0] s), .[1] s, limit)
 
--- Pure: build the composition predicate from parsed data.
-compPredicate :: (Vector U8, Str, Real) -> Vector U8 -> Bool
+--' A parsed composition rule: the characters counted, the comparator, and
+--' the limit on their fraction.
+type CompRule = (Vector U8, Str, Real)
+
+-- The rule for a `-c` argument. An absent rule (the empty string) becomes the
+-- rule "no characters, fraction <= 1", which every sequence satisfies, so the
+-- predicate needs no special case. A malformed rule aborts here, once.
+compRule :: Str -> CompRule
+compRule s ? s == "" = (str2u8 "", "<=", 1.0)
+           : unwrap (parseComposition s)
+
+-- Pure: test one sequence against a parsed rule.
+compPredicate :: CompRule -> Vector U8 -> Bool
 compPredicate (chars, op, limit) seq =
   let cmap = charCount seq
       fraction = toReal (fold (\b c -> b + .[c] cmap) 0 chars) / toReal (size seq)
@@ -70,8 +87,9 @@ filterCommand :: FilterOpts -> RFile -> <IO> ()
 filterCommand opts file = do
   Ok fi <- @open file :: <IO> (Try Str (IStream (Seq Str)))
 
-  let comp = ? (.composition opts) == "" = const True
-             : compPredicate (unwrap (parseComposition (.composition opts)))
+  -- Parsed once here. Work placed inside a let-bound lambda is redone on
+  -- every call, and the predicate runs once per sequence.
+  let rule = compRule (.composition opts)
 
   let ltf = ? isNull (.longerThan opts) = const True
             : let limit = require (.longerThan opts)
@@ -81,12 +99,12 @@ filterCommand opts file = do
             : let limit = require (.shorterThan opts)
               in (\seq -> size seq < limit)
 
-  let f = (\(_, s) -> ltf s && stf s && comp s)
+  let f = (\(_, s) -> ltf s && stf s && compPredicate rule s)
 
-  @collect (filterSeqs f fi)
+  @collect (filterSeqs (parOpts (.threads opts)) f fi)
 
--- The @collect producer, at the concrete element type. A streaming
--- command's batch type is read off the producer's signature, so the
--- generic psfilter cannot sit at the head of the @collect argument.
-filterSeqs :: (Seq Str -> Bool) -> IStream (Seq Str) -> ([Seq Str] -> <IO> ()) -> <IO> ()
-filterSeqs f fi = psfilter f (pull fi)
+-- The @collect producer, at the concrete element type: a streaming command's
+-- batch type is read off the producer's signature. Each batch is filtered
+-- in parallel; `batch` times each parallel call.
+filterSeqs :: ParOpts -> (Seq Str -> Bool) -> IStream (Seq Str) -> ([Seq Str] -> <IO> ()) -> <IO> ()
+filterSeqs opts p fi = psbatch (batch@pfilterWith opts p) (pull fi)

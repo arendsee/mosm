@@ -3,6 +3,7 @@ module (*)
 import root-cpp
 import text-cpp
 import vector-cpp
+import parallel-cpp
 
 --' A readable filename
 --' @check.path r
@@ -17,7 +18,7 @@ source Cpp from "src/formats.hpp" ("toFastaEntries")
 --' Convert to FASTA
 toFastaEntries :: [Seq Str] -> Str
 
-source Cpp from "src/mosm.hpp" ("charCount", "str2u8", "psfilter")
+source Cpp from "src/mosm.hpp" ("charCount", "str2u8", "psbatch")
 
 --' Count the occurances of each byte in a byte vector
 charCount :: Vector U8 -> Vector 256 U64
@@ -25,12 +26,22 @@ charCount :: Vector U8 -> Vector 256 U64
 --' Convert a string to byte vector
 str2u8 :: Str -> Vector U8
 
---' Filter a stream
-psfilter
-  :: (a -> Bool)
+--' Apply a batch function to every batch of a stream
+--'
+--' The batch function decides what happens inside a batch: `filter p`,
+--' `map f`, or one of the parallel combinators (`pfilterWith opts p`,
+--' `pmapWith opts f`). Empty results are not forwarded.
+psbatch
+  :: ([a] -> [b])       -- transform one batch
   -> <IO> [a]           -- pull from stream, see `pull`
-  -> ([a] -> <IO> ())   -- write to output stream
+  -> ([b] -> <IO> ())   -- write to output stream
   -> <IO> ()
+
+--' Options for the parallel combinators given a thread count, where 0
+--' selects one worker per core.
+parOpts :: Int -> ParOpts
+parOpts n ? n == 0 = defaultParOpts
+          : .(.workers = n) defaultParOpts
 
 --' Pull the next batch from a stream. A decode failure aborts the run.
 --'

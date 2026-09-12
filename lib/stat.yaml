@@ -1,0 +1,4 @@
+# Benchmark label: `batch` times each call of the parallel stage, i.e. one
+# batch of the stream. Rows are rendered by main.yaml's benchmark-template.
+labeled-groups:
+  batch: { benchmark: true }

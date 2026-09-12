@@ -157,34 +157,22 @@ inline std::vector<std::uint64_t> charCount(const std::vector<std::uint8_t>& v) 
 }
 
 // -----------------------------------------------------------------------------
-// psfilter: forward-only predicate filter over a stream of reads. Same callback
+// psbatch: forward-only batch stage over a stream of reads. Same callback
 // shape as cutStream/accStream: `next` pulls the next batch (empty at EOF),
-// `write_out` forwards a batch. `keep` is applied to each read; reads for which
-// it returns false are dropped. Input batching is preserved: each non-empty
-// input batch yields at most one output batch of its surviving reads.
+// `write_out` forwards a batch. `f` maps a whole input batch to an output
+// batch, so the caller chooses what happens inside a batch -- a plain map or
+// filter, or one of the parallel combinators. Input batching is preserved:
+// each non-empty input batch yields at most one output batch.
 //
 // morloc signature (see mosm.loc):
-//   psfilter :: (a -> Bool)
-//            -> <IO> [a]
-//            -> ([a] -> <IO> ())
-//            -> <IO> ()
+//   psbatch :: ([a] -> [b]) -> <IO> [a] -> ([b] -> <IO> ()) -> <IO> ()
 // -----------------------------------------------------------------------------
-template <class Pred, class Next, class Sink>
-inline void psfilter(Pred keep, Next next, Sink write_out) {
-    using NextResult = std::invoke_result_t<Next>;
-    using Read       = typename NextResult::value_type;
-
+template <class Fn, class Next, class Sink>
+inline void psbatch(Fn f, Next next, Sink write_out) {
     for (;;) {
         auto batch = next();
         if (batch.empty()) break;
-
-        std::vector<Read> out;
-        for (auto& r : batch) {
-            if (keep(r)) {
-                out.emplace_back(std::move(r));
-            }
-        }
-
+        auto out = f(std::move(batch));
         if (!out.empty()) write_out(std::move(out));
     }
 }

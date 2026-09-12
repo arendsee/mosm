@@ -1,0 +1,5 @@
+# One row per benchmark label at end of run, on stderr; silence with --quiet.
+# Times are seconds. The whole-pass time is not labeled: a label on an
+# effectful call measures nothing useful, so bench/run.sh takes wall time.
+benchmark-template:
+  summary: "BENCH\t{group}\t{name}\t{lang}\t{count}\t{mean}\t{min}\t{max}\t{total}"

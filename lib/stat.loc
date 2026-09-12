@@ -10,13 +10,18 @@ record StatsOpts where
   --' @true -I/--case-sensitive
   caseSensitive :: Bool
 
+  --' worker threads for the per-sequence work; 0 means one per core
+  --' @metavar N
+  --' @arg -t/--threads
+  --' @default 0
+  threads :: Int
+
 record Cpp => StatsOpts = "struct"
 
 source Cpp from "src/stat.hpp"
   ( "charHist"
   , "addHist"
   , "caseInsensitive"
-  , "psmap"
   , "statsProfile"
   , "statsHist"
   , "statsLogHist"
@@ -31,14 +36,6 @@ charHist :: Vector U8 -> Vector 256 U64
 addHist :: Vector n U64 -> Vector n U64 -> Vector n U64
 caseInsensitive :: Vector 256 U64 -> Vector 256 U64
 
--- Map each read of a stream through `f`, forwarding results to a sink. The pull
--- loop lives in C++; morloc supplies `f` and the `@next`/sink callbacks.
-psmap
-  :: (a -> b)
-  -> <IO> [a]
-  -> ([b] -> <IO> ())
-  -> <IO> ()
- 
 
 
 --' display protein profile
@@ -74,16 +71,16 @@ cstatsCommand opt file = do
   Ok fi <- @open file :: <IO> (Try Str (IStream (Seq Str)))
   let toHist = ? .caseSensitive opt = seqHist
                : seqHistCI
-  @collect (histSeqs toHist fi)
+  @collect (histSeqs (parOpts (.threads opt)) toHist fi)
 
--- The @collect producers, at concrete element types. A streaming command's
--- batch type is read off the producer's signature, so the generic psmap
--- cannot sit at the head of the @collect argument.
-histSeqs :: (Seq Str -> Vector 256 U64) -> IStream (Seq Str) -> ([Vector 256 U64] -> <IO> ()) -> <IO> ()
-histSeqs f fi = psmap f (pull fi)
+-- The @collect producers, at concrete element types: a streaming command's
+-- batch type is read off the producer's signature. Each batch is mapped in
+-- parallel; `batch` times each parallel call.
+histSeqs :: ParOpts -> (Seq Str -> Vector 256 U64) -> IStream (Seq Str) -> ([Vector 256 U64] -> <IO> ()) -> <IO> ()
+histSeqs opts f fi = psbatch (batch@pmapWith opts f) (pull fi)
 
-lengthSeqs :: (Seq Str -> (Str, U64)) -> IStream (Seq Str) -> ([(Str, U64)] -> <IO> ()) -> <IO> ()
-lengthSeqs f fi = psmap f (pull fi)
+lengthSeqs :: ParOpts -> (Seq Str -> (Str, U64)) -> IStream (Seq Str) -> ([(Str, U64)] -> <IO> ()) -> <IO> ()
+lengthSeqs opts f fi = psbatch (batch@pmapWith opts f) (pull fi)
 
 
 --' write 5 number summary of lengths
@@ -101,7 +98,7 @@ seqLength :: Seq Str -> (Str, U64)
 seqLength (name, seq) = (name, size seq)
 
 -- Collect one (header, length) pair per sequence. Case sensitivity does not
--- affect lengths, so StatsOpts is ignored here.
+-- affect lengths; only the thread count is read.
 --
 --' calculate sequence-length statistics
 --' @name stat
@@ -109,6 +106,6 @@ seqLength (name, seq) = (name, size seq)
 --' @render -G/--log-hist=statsLogHist
 --' @render -s/--summary=statsSummary @default
 statsCommand :: StatsOpts -> RFile -> <IO> ()
-statsCommand _ file = do
+statsCommand opt file = do
   Ok fi <- @open file :: <IO> (Try Str (IStream (Seq Str)))
-  @collect (lengthSeqs seqLength fi)
+  @collect (lengthSeqs (parOpts (.threads opt)) seqLength fi)
