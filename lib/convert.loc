@@ -12,7 +12,7 @@ convertCommand ::
   Str -> <IO> ()
 convertCommand fastafile = do
   o <- @stdout :: <IO> (OStream (Seq Str))
-  streamSeq fastafile (sink 3 o)
+  run@streamSeq fastafile (sink 3 o)
   @close o
 
 source Cpp from "src/formats.hpp" ("streamSeq")

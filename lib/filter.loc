@@ -105,6 +105,6 @@ filterCommand opts file = do
 
 -- The @collect producer, at the concrete element type: a streaming command's
 -- batch type is read off the producer's signature. Each batch is filtered
--- in parallel; `batch` times each parallel call.
+-- in parallel; `run` times the whole pass, `batch` each parallel call.
 filterSeqs :: ParOpts -> (Seq Str -> Bool) -> IStream (Seq Str) -> ([Seq Str] -> <IO> ()) -> <IO> ()
-filterSeqs opts p fi = psbatch (batch@pfilterWith opts p) (pull fi)
+filterSeqs opts p fi = run@psbatch (batch@pfilterWith opts p) (pull fi)

@@ -4,6 +4,7 @@ module mosm
   , filterCommand
   , statsCommand
   , cstatsCommand
+  -- , subseqCommand
   -- , consensus
   -- , wc
   -- , grep
@@ -14,7 +15,6 @@ module mosm
   -- , sniff
   -- , sort
   -- , split
-  -- , subseq
   -- , tail
   -- , translate
   -- , uniq
@@ -24,6 +24,7 @@ import .lib.cut (cutCommand)
 import .lib.convert (convertCommand)
 import .lib.filter (filterCommand)
 import .lib.stat (statsCommand, cstatsCommand)
+-- import .lib.subseq (subseqCommand)
 
 -- -- --' finds the consensus sequence for aligned sequence
 -- -- consensusWrapper
@@ -57,9 +58,6 @@ import .lib.stat (statsCommand, cstatsCommand)
 -- --
 -- -- --' calculate sequence statistics
 -- -- stat
--- --
--- -- --' extract subsequence from each entry (revcomp if a<b)
--- -- subseq
 -- --
 -- -- --' translate a DNA sequence into a protein sequence
 -- -- translate

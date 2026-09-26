@@ -1,3 +1,5 @@
 *.dat
 last.err
 run.log
+analyze.log
+out.fa

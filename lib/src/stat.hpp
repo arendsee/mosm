@@ -37,8 +37,8 @@
 //   addHist         :: Vector n U64    -> Vector n U64 -> Vector n U64
 //   caseInsensitive :: Vector 256 U64  -> Vector 256 U64
 //   statsProfile    :: [Vector 256 U64] -> <IO> ()
-//   statsProportion :: [Vector 256 U64] -> <IO> ()
-//   statsCountTable :: [Vector 256 U64] -> <IO> ()
+//   statsProportionTotal :: Vector 256 U64 -> <IO> ()
+//   statsCountTableTotal  :: Vector 256 U64 -> <IO> ()
 //   cstatsSummary   :: [Vector 256 U64] -> <IO> ()
 //   statsSummary    :: [(Str, U64)]    -> <IO> ()
 //   statsHist       :: [(Str, U64)]    -> <IO> ()
@@ -434,10 +434,23 @@ inline void statsLogHist(
     mosm_stat::printBars(std::cout, labels, counts);
 }
 
+// zeroHist / addHistBatch: the seed and step of the folding form. Summing
+// byte histograms needs no per-sequence data, so the fold holds one 256-slot
+// accumulator however long the stream is.
+inline std::vector<std::uint64_t> zeroHist() {
+    return std::vector<std::uint64_t>(256, 0);
+}
+
+inline std::vector<std::uint64_t> addHistBatch(
+    const std::vector<std::uint64_t>& acc,
+    const std::vector<std::vector<std::uint64_t>>& batch
+) {
+    return addHist(acc, mosm_stat::aggregate(batch));
+}
+
 // statsProportion: proportion each byte contributes to the total character
 // count, most frequent first.
-inline void statsProportion(const std::vector<std::vector<std::uint64_t>>& hs) {
-    const std::vector<std::uint64_t> tot = mosm_stat::aggregate(hs);
+inline void statsProportionTotal(const std::vector<std::uint64_t>& tot) {
     const std::uint64_t grand = mosm_stat::histTotal(tot);
 
     if (grand == 0) {
@@ -455,8 +468,7 @@ inline void statsProportion(const std::vector<std::vector<std::uint64_t>>& hs) {
 }
 
 // statsCountTable: raw count of each byte, most frequent first.
-inline void statsCountTable(const std::vector<std::vector<std::uint64_t>>& hs) {
-    const std::vector<std::uint64_t> tot = mosm_stat::aggregate(hs);
+inline void statsCountTableTotal(const std::vector<std::uint64_t>& tot) {
     const std::uint64_t grand = mosm_stat::histTotal(tot);
 
     if (grand == 0) {
@@ -471,7 +483,8 @@ inline void statsCountTable(const std::vector<std::vector<std::uint64_t>>& hs) {
 }
 
 // statsProfile: length summary followed by a colored vertical bar chart of
-// amino-acid composition.
+// amino-acid composition. Its length summary needs every sequence's length,
+// so this one gathers rather than folds.
 inline void statsProfile(const std::vector<std::vector<std::uint64_t>>& hs) {
     mosm_stat::printLengthSummary(std::cout, mosm_stat::histLengths(hs));
     const std::vector<std::uint64_t> tot = mosm_stat::aggregate(hs);

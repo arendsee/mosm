@@ -1,0 +1,4 @@
+# Benchmark label: `run` times the whole streaming pass. Rows are rendered by
+# main.yaml's benchmark-template.
+labeled-groups:
+  run: { benchmark: true }

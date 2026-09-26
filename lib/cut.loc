@@ -78,7 +78,7 @@ accF i f fo = fo [.[i] f]
 
 --' Stream-backed variants delegate to the sourced C++ implementations.
 cutS :: (?I64, ?I64, ?I64) -> IStream (Seq Str) -> ([Seq Str] -> <IO> ()) -> <IO> ()
-cutS (a,b,s) fi fo = cutStream a b s (pull fi) fo
+cutS (a,b,s) fi fo = run@cutStream a b s (pull fi) fo
 
 accS :: I64 -> IStream (Seq Str) -> ([Seq Str] -> <IO> ()) -> <IO> ()
-accS k fi fo = accStream k (pull fi) fo
+accS k fi fo = run@accStream k (pull fi) fo

@@ -25,8 +25,10 @@ source Cpp from "src/stat.hpp"
   , "statsProfile"
   , "statsHist"
   , "statsLogHist"
-  , "statsProportion"
-  , "statsCountTable"
+  , "statsProportionTotal"
+  , "statsCountTableTotal"
+  , "zeroHist"
+  , "addHistBatch"
   , "statsSummary"
   , "cstatsSummary"
   )
@@ -34,6 +36,8 @@ source Cpp from "src/stat.hpp"
 -- helpers
 charHist :: Vector U8 -> Vector 256 U64
 addHist :: Vector n U64 -> Vector n U64 -> Vector n U64
+zeroHist :: Vector 256 U64
+addHistBatch :: Vector 256 U64 -> [Vector 256 U64] -> Vector 256 U64
 caseInsensitive :: Vector 256 U64 -> Vector 256 U64
 
 
@@ -42,10 +46,10 @@ caseInsensitive :: Vector 256 U64 -> Vector 256 U64
 statsProfile :: [Vector 256 U64] -> <IO> ()
 
 --' write proportion of each character
-statsProportion :: [Vector 256 U64] -> <IO> ()
+statsProportionTotal :: Vector 256 U64 -> <IO> ()
 
 --' write a table of character counts
-statsCountTable :: [Vector 256 U64] -> <IO> ()
+statsCountTableTotal :: Vector 256 U64 -> <IO> ()
 
 --' write 5 number summary of lengths
 cstatsSummary :: [Vector 256 U64] -> <IO> ()
@@ -63,8 +67,8 @@ seqHistCI (_, seq) = caseInsensitive (charHist seq)
 --' calculate character-composition statistics
 --' @name cstat
 --' @render -C/--profile=statsProfile
---' @render -p/--proportion=statsProportion
---' @render -c/--counts=statsCountTable
+--' @render -p/--proportion=statsProportionTotal @fold=addHistBatch @init=zeroHist @combine=addHist
+--' @render -c/--counts=statsCountTableTotal @fold=addHistBatch @init=zeroHist @combine=addHist
 --' @render -s/--summary=cstatsSummary @default
 cstatsCommand :: StatsOpts -> RFile -> <IO> ()
 cstatsCommand opt file = do
@@ -75,12 +79,12 @@ cstatsCommand opt file = do
 
 -- The @collect producers, at concrete element types: a streaming command's
 -- batch type is read off the producer's signature. Each batch is mapped in
--- parallel; `batch` times each parallel call.
+-- parallel; `run` times the whole pass, `batch` each parallel call.
 histSeqs :: ParOpts -> (Seq Str -> Vector 256 U64) -> IStream (Seq Str) -> ([Vector 256 U64] -> <IO> ()) -> <IO> ()
-histSeqs opts f fi = psbatch (batch@pmapWith opts f) (pull fi)
+histSeqs opts f fi = run@psbatch (batch@pmapWith opts f) (pull fi)
 
 lengthSeqs :: ParOpts -> (Seq Str -> (Str, U64)) -> IStream (Seq Str) -> ([(Str, U64)] -> <IO> ()) -> <IO> ()
-lengthSeqs opts f fi = psbatch (batch@pmapWith opts f) (pull fi)
+lengthSeqs opts f fi = run@psbatch (batch@pmapWith opts f) (pull fi)
 
 
 --' write 5 number summary of lengths

@@ -1,4 +1,6 @@
-# Benchmark label: `batch` times each call of the parallel stage, i.e. one
-# batch of the stream. Rows are rendered by main.yaml's benchmark-template.
+# Benchmark labels: `run` times the whole streaming pass (pull, transform,
+# render, write), `batch` each call of the parallel stage, i.e. one batch of
+# the stream. Rows are rendered by main.yaml's benchmark-template.
 labeled-groups:
+  run: { benchmark: true }
   batch: { benchmark: true }
